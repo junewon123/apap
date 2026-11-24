@@ -1,0 +1,486 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Connection check doc
+    match /test/connection {
+      allow get: if true;
+    }
+
+    // Global Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidGuestId(id) {
+      return id is string && id.size() >= 10 && id.size() <= 80 && id.matches('^guest_[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isPrimaryAdmin() {
+      return isVerifiedUser()
+        && request.auth.token.email is string
+        && request.auth.token.email.lower() == 'yjw201008@gmail.com';
+    }
+
+    function isAdmin() {
+      return isPrimaryAdmin() || (
+        isVerifiedUser() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isNotBanned() {
+      return !exists(/databases/$(database)/documents/userAccounts/$(request.auth.uid))
+        || !('isBanned' in get(/databases/$(database)/documents/userAccounts/$(request.auth.uid)).data)
+        || get(/databases/$(database)/documents/userAccounts/$(request.auth.uid)).data.isBanned != true;
+    }
+
+    function isValidCategory(cat) {
+      return cat in ['관엽식물', '허브·방향식물', '다육·선인장', '꽃·관화식물', '공기정화·야자', '기타·질문'];
+    }
+
+    function isValidPostType(pt) {
+      return pt in ['사진자랑', '키우는팁', '정보공유', '질문'];
+    }
+
+    function isValidPost(data) {
+      return data.keys().hasAll([
+        'authorId',
+        'authorName',
+        'title',
+        'content',
+        'plantName',
+        'category',
+        'postType',
+        'photoDataUrl',
+        'likesCount',
+        'commentsCount',
+        'createdAt',
+        'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'authorId',
+        'authorName',
+        'authorPhotoUrl',
+        'title',
+        'content',
+        'plantName',
+        'category',
+        'postType',
+        'photoDataUrl',
+        'likesCount',
+        'commentsCount',
+        'createdAt',
+        'updatedAt'
+      ])
+      && isValidId(data.authorId)
+      && data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 60
+      && (!('authorPhotoUrl' in data) || (data.authorPhotoUrl is string && data.authorPhotoUrl.size() <= 500))
+      && data.title is string && data.title.size() >= 1 && data.title.size() <= 120
+      && data.content is string && data.content.size() >= 1 && data.content.size() <= 3000
+      && data.plantName is string && data.plantName.size() <= 80
+      && isValidCategory(data.category)
+      && isValidPostType(data.postType)
+      && data.photoDataUrl is string && data.photoDataUrl.size() <= 220000
+      && data.likesCount is int && data.likesCount >= 0
+      && data.commentsCount is int && data.commentsCount >= 0
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidComment(data, postId) {
+      return data.keys().hasAll([
+        'postId',
+        'authorId',
+        'authorName',
+        'content',
+        'createdAt'
+      ])
+      && data.keys().hasOnly([
+        'postId',
+        'authorId',
+        'authorName',
+        'authorPhotoUrl',
+        'content',
+        'createdAt'
+      ])
+      && data.postId == postId
+      && isValidId(data.authorId)
+      && data.authorId == request.auth.uid
+      && data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 60
+      && (!('authorPhotoUrl' in data) || (data.authorPhotoUrl is string && data.authorPhotoUrl.size() <= 500))
+      && data.content is string && data.content.size() >= 1 && data.content.size() <= 1000
+      && data.createdAt is timestamp
+      && data.createdAt == request.time;
+    }
+
+    function isValidLike(data, userId) {
+      return data.keys().hasAll(['userId', 'createdAt'])
+      && data.keys().hasOnly(['userId', 'createdAt'])
+      && isValidId(data.userId)
+      && data.userId == userId
+      && data.userId == request.auth.uid
+      && data.createdAt is timestamp
+      && data.createdAt == request.time;
+    }
+
+    function isValidAdmin(data, userId) {
+      return data.keys().hasAll(['uid', 'role', 'createdAt'])
+      && data.keys().hasOnly(['uid', 'role', 'createdAt'])
+      && isValidId(data.uid)
+      && data.uid == userId
+      && data.role == 'admin'
+      && data.createdAt is timestamp;
+    }
+
+    function isValidPopularSearch(data) {
+      return data.keys().hasAll(['term', 'count', 'lastSearchedAt', 'lastSearcherId'])
+      && data.keys().hasOnly(['term', 'count', 'lastSearchedAt', 'lastSearcherId'])
+      && data.term is string && data.term.size() >= 1 && data.term.size() <= 40
+      && data.count is int && data.count >= 1
+      && data.lastSearchedAt is timestamp && data.lastSearchedAt == request.time
+      && isValidId(data.lastSearcherId)
+      && data.lastSearcherId == request.auth.uid;
+    }
+
+    function isValidUserAccount(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'photoUrl', 'loginCount', 'firstLoginAt', 'lastLoginAt'])
+      && data.keys().hasOnly([
+        'uid',
+        'email',
+        'displayName',
+        'photoUrl',
+        'loginCount',
+        'firstLoginAt',
+        'lastLoginAt',
+        'isBanned',
+        'banReason',
+        'bannedAt',
+        'kickedAt'
+      ])
+      && isValidId(data.uid)
+      && data.email is string && data.email.size() >= 1 && data.email.size() <= 200
+      && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+      && data.photoUrl is string && data.photoUrl.size() <= 500
+      && data.loginCount is int && data.loginCount >= 1
+      && data.firstLoginAt is timestamp
+      && data.lastLoginAt is timestamp
+      && (!('isBanned' in data) || data.isBanned is bool)
+      && (!('banReason' in data) || (data.banReason is string && data.banReason.size() <= 200))
+      && (!('bannedAt' in data) || data.bannedAt is timestamp)
+      && (!('kickedAt' in data) || data.kickedAt is timestamp);
+    }
+
+    function isValidGuestVisit(data) {
+      return data.keys().hasAll(['visitorId', 'label', 'visitCount', 'firstVisitAt', 'lastVisitAt'])
+      && data.keys().hasOnly([
+        'visitorId',
+        'label',
+        'visitCount',
+        'firstVisitAt',
+        'lastVisitAt',
+        'isBanned',
+        'banReason',
+        'bannedAt',
+        'kickedAt'
+      ])
+      && isValidGuestId(data.visitorId)
+      && data.label == '비로그인'
+      && data.visitCount is int && data.visitCount >= 1
+      && data.firstVisitAt is timestamp
+      && data.lastVisitAt is timestamp
+      && (!('isBanned' in data) || data.isBanned is bool)
+      && (!('banReason' in data) || (data.banReason is string && data.banReason.size() <= 200))
+      && (!('bannedAt' in data) || data.bannedAt is timestamp)
+      && (!('kickedAt' in data) || data.kickedAt is timestamp);
+    }
+
+    // Admins Collection
+    match /admins/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isPrimaryAdmin();
+      allow create, update: if isAdmin() && isValidId(userId) && isValidAdmin(incoming(), userId);
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // User Accounts Collection (PII: strict owner or primary admin access, plus kick/ban moderation)
+    match /userAccounts/{userId} {
+      allow get: if isVerifiedUser() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isPrimaryAdmin() && request.query.limit != null && request.query.limit <= 100;
+
+      allow create: if isVerifiedUser()
+        && isValidId(userId)
+        && userId == request.auth.uid
+        && isValidUserAccount(incoming())
+        && incoming().uid == request.auth.uid
+        && incoming().email == request.auth.token.email
+        && incoming().loginCount == 1
+        && incoming().firstLoginAt == request.time
+        && incoming().lastLoginAt == request.time
+        && !('isBanned' in incoming())
+        && !('banReason' in incoming())
+        && !('bannedAt' in incoming())
+        && !('kickedAt' in incoming());
+
+      allow update: if isVerifiedUser()
+        && isValidId(userId)
+        && isValidUserAccount(incoming())
+        && incoming().uid == existing().uid
+        && incoming().firstLoginAt == existing().firstLoginAt
+        && (
+          // Action 1: Owner updates their own login record (only if not banned)
+          (
+            userId == request.auth.uid
+            && (!('isBanned' in existing()) || existing().isBanned != true)
+            && incoming().email == request.auth.token.email
+            && incoming().lastLoginAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'photoUrl', 'loginCount', 'lastLoginAt'])
+            && incoming().loginCount == existing().loginCount + 1
+          )
+          ||
+          // Action 2: Primary Admin kicks (forces logout of) a user account
+          (
+            isPrimaryAdmin()
+            && userId != request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['kickedAt'])
+            && incoming().kickedAt == request.time
+          )
+          ||
+          // Action 3: Primary Admin bans or unbans a user account
+          (
+            isPrimaryAdmin()
+            && userId != request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['isBanned', 'banReason', 'bannedAt'])
+            && incoming().isBanned is bool
+            && (
+              (incoming().isBanned == true && incoming().bannedAt == request.time)
+              || (incoming().isBanned == false && !('bannedAt' in incoming()) && !('banReason' in incoming()))
+            )
+          )
+        );
+
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // Guest Visits Collection (Zero-PII anonymous visit logs labeled '비로그인')
+    match /guestVisits/{visitorId} {
+      allow get: if isValidGuestId(visitorId);
+      allow list: if isPrimaryAdmin() && request.query.limit != null && request.query.limit <= 100;
+
+      allow create: if isValidGuestId(visitorId)
+        && isValidGuestVisit(incoming())
+        && incoming().visitorId == visitorId
+        && incoming().visitCount == 1
+        && incoming().firstVisitAt == request.time
+        && incoming().lastVisitAt == request.time
+        && !('isBanned' in incoming())
+        && !('banReason' in incoming())
+        && !('bannedAt' in incoming())
+        && !('kickedAt' in incoming());
+
+      allow update: if isValidGuestId(visitorId)
+        && isValidGuestVisit(incoming())
+        && incoming().visitorId == existing().visitorId
+        && incoming().label == existing().label
+        && incoming().firstVisitAt == existing().firstVisitAt
+        && (
+          // Action 1: Unauthenticated visitor records a new session visit (when not banned)
+          (
+            (!('isBanned' in existing()) || existing().isBanned != true)
+            && incoming().lastVisitAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly(['visitCount', 'lastVisitAt'])
+            && incoming().visitCount == existing().visitCount + 1
+          )
+          ||
+          // Action 2: Primary Admin kicks a guest visitor
+          (
+            isPrimaryAdmin()
+            && incoming().diff(existing()).affectedKeys().hasOnly(['kickedAt'])
+            && incoming().kickedAt == request.time
+          )
+          ||
+          // Action 3: Primary Admin bans or unbans a guest visitor
+          (
+            isPrimaryAdmin()
+            && incoming().diff(existing()).affectedKeys().hasOnly(['isBanned', 'banReason', 'bannedAt'])
+            && incoming().isBanned is bool
+            && (
+              (incoming().isBanned == true && incoming().bannedAt == request.time)
+              || (incoming().isBanned == false && !('bannedAt' in incoming()) && !('banReason' in incoming()))
+            )
+          )
+        );
+
+      allow delete: if isAdmin() && isValidGuestId(visitorId);
+    }
+
+    // Popular Searches Collection
+    match /popularSearches/{termId} {
+      allow get: if isValidId(termId);
+      allow list: if request.query.limit != null && request.query.limit <= 30;
+
+      allow create: if isVerifiedUser()
+        && isValidId(termId)
+        && isValidPopularSearch(incoming())
+        && incoming().count == 1
+        && isNotBanned();
+
+      allow update: if isVerifiedUser()
+        && isValidId(termId)
+        && isValidPopularSearch(incoming())
+        && incoming().term == existing().term
+        && incoming().diff(existing()).affectedKeys().hasOnly(['count', 'lastSearchedAt', 'lastSearcherId'])
+        && incoming().count == existing().count + 1
+        && isNotBanned();
+
+      allow delete: if isAdmin() && isValidId(termId);
+    }
+
+    // Community Posts Collection
+    match /communityPosts/{postId} {
+      allow get: if isValidId(postId);
+      allow list: if request.query.limit != null && request.query.limit <= 100;
+
+      allow create: if isVerifiedUser()
+        && isValidId(postId)
+        && isValidPost(incoming())
+        && incoming().authorId == request.auth.uid
+        && incoming().likesCount == 0
+        && incoming().commentsCount == 0
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isNotBanned();
+
+      allow update: if isVerifiedUser()
+        && isValidId(postId)
+        && isValidPost(incoming())
+        && incoming().authorId == existing().authorId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && isNotBanned()
+        && (
+          // Action 1: Author edits post content
+          (
+            existing().authorId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'title',
+              'content',
+              'plantName',
+              'category',
+              'postType',
+              'photoDataUrl',
+              'updatedAt'
+            ])
+            && incoming().likesCount == existing().likesCount
+            && incoming().commentsCount == existing().commentsCount
+          )
+          ||
+          // Action 2: Atomic Like / Unlike counter update synced with /likes/{uid}
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'updatedAt'])
+            && incoming().commentsCount == existing().commentsCount
+            && (
+              (
+                incoming().likesCount == existing().likesCount + 1
+                && !exists(/databases/$(database)/documents/communityPosts/$(postId)/likes/$(request.auth.uid))
+                && existsAfter(/databases/$(database)/documents/communityPosts/$(postId)/likes/$(request.auth.uid))
+              )
+              ||
+              (
+                incoming().likesCount == existing().likesCount - 1
+                && incoming().likesCount >= 0
+                && exists(/databases/$(database)/documents/communityPosts/$(postId)/likes/$(request.auth.uid))
+                && !existsAfter(/databases/$(database)/documents/communityPosts/$(postId)/likes/$(request.auth.uid))
+              )
+            )
+          )
+          ||
+          // Action 3: Comment counter increment / decrement
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly(['commentsCount', 'updatedAt'])
+            && incoming().likesCount == existing().likesCount
+            && (
+              incoming().commentsCount == existing().commentsCount + 1
+              || (incoming().commentsCount == existing().commentsCount - 1 && incoming().commentsCount >= 0)
+            )
+          )
+        );
+
+      allow delete: if isVerifiedUser()
+        && isValidId(postId)
+        && ((existing().authorId == request.auth.uid && isNotBanned()) || isAdmin());
+
+      // Comments Subcollection
+      match /comments/{commentId} {
+        allow get: if isValidId(postId) && isValidId(commentId);
+        allow list: if isValidId(postId) && request.query.limit != null && request.query.limit <= 100;
+
+        allow create: if isVerifiedUser()
+          && isValidId(postId)
+          && isValidId(commentId)
+          && isValidComment(incoming(), postId)
+          && isNotBanned()
+          && exists(/databases/$(database)/documents/communityPosts/$(postId))
+          && getAfter(/databases/$(database)/documents/communityPosts/$(postId)).data.commentsCount == get(/databases/$(database)/documents/communityPosts/$(postId)).data.commentsCount + 1;
+
+        allow update: if false;
+
+        allow delete: if isVerifiedUser()
+          && isValidId(postId)
+          && isValidId(commentId)
+          && ((existing().authorId == request.auth.uid && isNotBanned()) || isAdmin())
+          && (
+            !existsAfter(/databases/$(database)/documents/communityPosts/$(postId))
+            || getAfter(/databases/$(database)/documents/communityPosts/$(postId)).data.commentsCount == get(/databases/$(database)/documents/communityPosts/$(postId)).data.commentsCount - 1
+          );
+      }
+
+      // Likes Subcollection
+      match /likes/{userId} {
+        allow get: if isSignedIn() && isValidId(postId) && isValidId(userId) && userId == request.auth.uid;
+        allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+
+        allow create: if isVerifiedUser()
+          && isValidId(postId)
+          && isValidId(userId)
+          && userId == request.auth.uid
+          && isValidLike(incoming(), userId)
+          && isNotBanned()
+          && exists(/databases/$(database)/documents/communityPosts/$(postId))
+          && getAfter(/databases/$(database)/documents/communityPosts/$(postId)).data.likesCount == get(/databases/$(database)/documents/communityPosts/$(postId)).data.likesCount + 1;
+
+        allow update: if false;
+
+        allow delete: if isVerifiedUser()
+          && isValidId(postId)
+          && isValidId(userId)
+          && userId == request.auth.uid
+          && isNotBanned()
+          && (
+            !existsAfter(/databases/$(database)/documents/communityPosts/$(postId))
+            || getAfter(/databases/$(database)/documents/communityPosts/$(postId)).data.likesCount == get(/databases/$(database)/documents/communityPosts/$(postId)).data.likesCount - 1
+          );
+      }
+    }
+  }
+}

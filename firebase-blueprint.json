@@ -1,0 +1,379 @@
+{
+  "entities": {
+    "CommunityPost": {
+      "title": "CommunityPost",
+      "description": "식물 커뮤니티 게시글 (사진 자랑, 키우는 팁, 정보 공유, 질문)",
+      "type": "object",
+      "properties": {
+        "authorId": {
+          "type": "string",
+          "description": "작성자 Firebase Auth UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorName": {
+          "type": "string",
+          "description": "작성자 표시 이름",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "authorPhotoUrl": {
+          "type": "string",
+          "description": "작성자 프로필 이미지 URL",
+          "maxLength": 500
+        },
+        "title": {
+          "type": "string",
+          "description": "게시글 제목",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "content": {
+          "type": "string",
+          "description": "게시글 본문",
+          "minLength": 1,
+          "maxLength": 3000
+        },
+        "plantName": {
+          "type": "string",
+          "description": "관련 식물 이름",
+          "maxLength": 80
+        },
+        "category": {
+          "type": "string",
+          "description": "식물 카테고리",
+          "enum": [
+            "관엽식물",
+            "허브·방향식물",
+            "다육·선인장",
+            "꽃·관화식물",
+            "공기정화·야자",
+            "기타·질문"
+          ]
+        },
+        "postType": {
+          "type": "string",
+          "description": "게시글 성격",
+          "enum": ["사진자랑", "키우는팁", "정보공유", "질문"]
+        },
+        "photoDataUrl": {
+          "type": "string",
+          "description": "압축된 식물 사진 Data URL 또는 빈 문자열",
+          "maxLength": 220000
+        },
+        "likesCount": {
+          "type": "integer",
+          "description": "총 좋아요 수"
+        },
+        "commentsCount": {
+          "type": "integer",
+          "description": "총 댓글 수"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "작성 시각 (서버 타임스탬프)"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "수정 시각 (서버 타임스탬프)"
+        }
+      },
+      "required": [
+        "authorId",
+        "authorName",
+        "title",
+        "content",
+        "plantName",
+        "category",
+        "postType",
+        "photoDataUrl",
+        "likesCount",
+        "commentsCount",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PostComment": {
+      "title": "PostComment",
+      "description": "커뮤니티 게시글 댓글",
+      "type": "object",
+      "properties": {
+        "postId": {
+          "type": "string",
+          "description": "부모 게시글 ID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorId": {
+          "type": "string",
+          "description": "댓글 작성자 UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorName": {
+          "type": "string",
+          "description": "댓글 작성자 표시 이름",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "authorPhotoUrl": {
+          "type": "string",
+          "description": "작성자 프로필 이미지 URL",
+          "maxLength": 500
+        },
+        "content": {
+          "type": "string",
+          "description": "댓글 내용",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "댓글 작성 시각"
+        }
+      },
+      "required": [
+        "postId",
+        "authorId",
+        "authorName",
+        "content",
+        "createdAt"
+      ]
+    },
+    "PostLike": {
+      "title": "PostLike",
+      "description": "게시글 좋아요 기록 (사용자당 1개 문서)",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "좋아요를 누른 사용자 UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "좋아요 시각"
+        }
+      },
+      "required": ["userId", "createdAt"]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "커뮤니티 관리자 권한 문서",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "관리자 UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "role", "createdAt"]
+    },
+    "PopularSearch": {
+      "title": "PopularSearch",
+      "description": "실시간 식물 인기 검색어 집계 문서",
+      "type": "object",
+      "properties": {
+        "term": {
+          "type": "string",
+          "description": "정규화된 식물 검색어",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "count": {
+          "type": "integer",
+          "description": "누적 검색 횟수"
+        },
+        "lastSearchedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "최근 검색 시각 (서버 타임스탬프)"
+        },
+        "lastSearcherId": {
+          "type": "string",
+          "description": "최근 검색한 사용자 UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        }
+      },
+      "required": ["term", "count", "lastSearchedAt", "lastSearcherId"]
+    },
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "올플랜트 로그인 사용자 계정 기록 (PII 포함, 본인 또는 관리자만 조회 가능)",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "사용자 Firebase Auth UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "description": "사용자 구글 계정 이메일 (PII)",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "displayName": {
+          "type": "string",
+          "description": "사용자 표시 이름",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "photoUrl": {
+          "type": "string",
+          "description": "프로필 사진 URL 또는 빈 문자열",
+          "maxLength": 500
+        },
+        "loginCount": {
+          "type": "integer",
+          "description": "누적 로그인 횟수"
+        },
+        "firstLoginAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "최초 로그인 시각 (서버 타임스탬프)"
+        },
+        "lastLoginAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "최근 로그인 시각 (서버 타임스탬프)"
+        },
+        "isBanned": {
+          "type": "boolean",
+          "description": "관리자에 의한 이용 정지(벤) 여부"
+        },
+        "banReason": {
+          "type": "string",
+          "description": "이용 정지 사유",
+          "maxLength": 200
+        },
+        "bannedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "이용 정지 처리 시각 (서버 타임스탬프)"
+        },
+        "kickedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "최근 강제 로그아웃(쫓아내기) 처리 시각 (서버 타임스탬프)"
+        }
+      },
+      "required": [
+        "uid",
+        "email",
+        "displayName",
+        "photoUrl",
+        "loginCount",
+        "firstLoginAt",
+        "lastLoginAt"
+      ]
+    },
+    "GuestVisit": {
+      "title": "GuestVisit",
+      "description": "비로그인 방문자 접속 기록 (PII 미포함, 관리자 열람 및 차단/추방 제어용)",
+      "type": "object",
+      "properties": {
+        "visitorId": {
+          "type": "string",
+          "description": "브라우저 비로그인 방문 식별자",
+          "minLength": 10,
+          "maxLength": 80,
+          "pattern": "^guest_[a-zA-Z0-9_\\-]+$"
+        },
+        "label": {
+          "type": "string",
+          "description": "표시 라벨",
+          "enum": ["비로그인"]
+        },
+        "visitCount": {
+          "type": "integer",
+          "description": "누적 방문 횟수"
+        },
+        "firstVisitAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "최초 방문 시각 (서버 타임스탬프)"
+        },
+        "lastVisitAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "최근 방문 시각 (서버 타임스탬프)"
+        },
+        "isBanned": {
+          "type": "boolean",
+          "description": "관리자에 의한 접속 정지(벤) 여부"
+        },
+        "banReason": {
+          "type": "string",
+          "description": "접속 정지 사유",
+          "maxLength": 200
+        },
+        "bannedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "접속 정지 처리 시각 (서버 타임스탬프)"
+        },
+        "kickedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "최근 강제 퇴장(쫓아내기) 처리 시각 (서버 타임스탬프)"
+        }
+      },
+      "required": ["visitorId", "label", "visitCount", "firstVisitAt", "lastVisitAt"]
+    }
+  },
+  "firestore": {
+    "/communityPosts/{postId}": {
+      "schema": { "$ref": "#/entities/CommunityPost" },
+      "description": "식물 커뮤니티 게시글 컬렉션"
+    },
+    "/communityPosts/{postId}/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/PostComment" },
+      "description": "게시글별 댓글 서브컬렉션"
+    },
+    "/communityPosts/{postId}/likes/{userId}": {
+      "schema": { "$ref": "#/entities/PostLike" },
+      "description": "게시글별 사용자 좋아요 서브컬렉션"
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "커뮤니티 관리자 UID 목록"
+    },
+    "/popularSearches/{termId}": {
+      "schema": { "$ref": "#/entities/PopularSearch" },
+      "description": "실시간 인기 검색어 순위 집계 컬렉션"
+    },
+    "/userAccounts/{userId}": {
+      "schema": { "$ref": "#/entities/UserAccount" },
+      "description": "로그인 사용자 계정 목록 (본인 조회 및 관리자 yjw201008@gmail.com 열람용)"
+    },
+    "/guestVisits/{visitorId}": {
+      "schema": { "$ref": "#/entities/GuestVisit" },
+      "description": "비로그인 방문자 접속 기록 (관리자 yjw201008@gmail.com에서 비로그인으로 표시)"
+    }
+  }
+}

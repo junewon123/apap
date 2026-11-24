@@ -1,0 +1,6 @@
+{
+  "name": "초목록 - 식물 검색 및 취향 맞춤 추천 도감",
+  "description": "구글 검색 정보 기반으로 식물 이름별 키우는 방법과 특징을 조회하고, 원하는 생김새·색·향기에 맞춰 식물을 추천받아 상세 관리법을 확인하는 식물 도감 웹 애플리케이션입니다.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

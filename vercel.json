@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/[...path].ts": {
+      "maxDuration": 30,
+      "includeFiles": "{src/**,index.html,package.json,tsconfig.json,vite.config.ts,vercel.json,server/**,api/**,firebase-applet-config.json,firebase-blueprint.json,firestore.rules,.env.example,.gitignore,README.md}"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
